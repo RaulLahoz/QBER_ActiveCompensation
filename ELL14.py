@@ -4,24 +4,27 @@ import time
 class ElliptecController:
     """Class to connect to and control Thorlabs Elliptec ELL14 rotation stages"""
     # Class variables for serial communication
-    port = "COM3"
+    port = "COM5"
     baudrate = 9600
     pulses_per_turn = 143360 # We tested that this is the correct number of steps for a single
     # turn, but we have have NO IDEA why this is. The ELL manual specifies 262144 (2^18) pulses per turn,
     # but this is wrong and we don't know why.
 
-    def __init__(self, port='COM3', baudrate=9600, address='0', verbose=False):
+    def __init__(self, port='COM5', baudrate=9600, address='0', verbose=False):
         # Connection details to establish serial connection
         self.address = address  # hex address (0‑F)
         self.verbose = verbose
-        ElliptecController.port = port
-        ElliptecController.baudrate = baudrate
-        ElliptecController.ser = serial.Serial(port=ElliptecController.port,
-                                 baudrate=ElliptecController.baudrate,
-                                 bytesize=serial.EIGHTBITS,
-                                 stopbits=serial.STOPBITS_ONE,
-                                 parity=serial.PARITY_NONE,
-                                 timeout=2)  # according to manual, timeout 2 s
+
+        if not hasattr(self, "ser"):  # only initialize connection if it doesn't already exist 
+            ElliptecController.port = port
+            ElliptecController.baudrate = baudrate
+            ElliptecController.ser = serial.Serial(port=ElliptecController.port,
+                                    baudrate=ElliptecController.baudrate,
+                                    bytesize=serial.EIGHTBITS,
+                                    stopbits=serial.STOPBITS_ONE,
+                                    parity=serial.PARITY_NONE,
+                                    timeout=2)  # according to manual, timeout 2 s
+            
         time.sleep(0.1)
         self._purge()  # Reset everything for clean start
         self.position = 0.0  # initialize position, always home to get correct initial value!
@@ -144,8 +147,8 @@ class ElliptecController:
 
 if __name__ == "__main__":
     # Initialize both devices
-    ell_0 = ElliptecController(port="/dev/ttyUSB0", address='0', verbose=True)
-    ell_2 = ElliptecController(port="/dev/ttyUSB0", address='2', verbose=True)
+    ell_0 = ElliptecController(port="COM5", address='0', verbose=True)
+    ell_2 = ElliptecController(port="COM5", address='2', verbose=True)
 
     # ===== Information =====
     print("=== Device 0 Info ===", ell_0.get_info())
