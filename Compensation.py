@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tkinter as tki
 
-import TimeTagger as TT
+import TimeTagger as TimeTagger
 
 from ELL14 import ElliptecController
 
@@ -166,10 +166,10 @@ class ContinuousPolarizationOptimizer:
 
 if __name__ == "__main__":
     # Test run setup
-    TESTING = True
+    TESTING = False
     meas_duration = 1  # seconds
     n_iterations = 50
-    tt_channels = [3, 4]
+    tt_channels = [3, 4] # Channel 3 (H), Channel 4 (V)
     qbers = np.zeros(n_iterations)
 
     # Initialize waveplates:
@@ -192,8 +192,8 @@ if __name__ == "__main__":
         if TESTING:
             qber = np.random.uniform(0, 0.2)
         else:
-            cts_h = ctr.getData()[0]
-            cts_v = ctr.getData()[1]
+            cts_h = ctr.getData()[0] # Channel 3 (H)
+            cts_v = ctr.getData()[1] # Channel 4 (V)
             qber = cts_h / (cts_h + cts_v)
         optimizer.coordinate_descent_2nd_order(qber)
         # optimizer.random_minimizer(qber)  # alternative
