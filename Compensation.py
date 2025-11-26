@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import tkinter as tki
+import time
 
 import TimeTagger as TimeTagger
 
@@ -167,8 +168,8 @@ class ContinuousPolarizationOptimizer:
 if __name__ == "__main__":
     # Test run setup
     TESTING = False
-    meas_duration = 1  # seconds
-    n_iterations = 50
+    meas_duration = 10  # seconds
+    n_iterations = 100
     tt_channels = [3, 4] # Channel 3 (H), Channel 4 (V)
     qbers = np.zeros(n_iterations)
 
@@ -176,7 +177,12 @@ if __name__ == "__main__":
     wp_1 = ElliptecController(address="0", verbose=True)
     wp_2 = ElliptecController(address="2", verbose=True)
     waveplates = (wp_1, wp_2)
-    optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, max_stepsize_deg=3)
+    optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, max_stepsize_deg=1)
+
+    # ===== Homing =====
+    wp_1.home(direction=0) # Homing device 0
+    wp_2.home(direction=0) # Homing device 2
+    time.sleep(2)
 
     # Open GUI to make initial tuning:
     optimizer.tune_voltages_manually()  # Close the GUI window to move on, but CLOSE THE TIMETAGGER GUI before
@@ -195,9 +201,14 @@ if __name__ == "__main__":
             cts_h = ctr.getData()[0] # Channel 3 (H)
             cts_v = ctr.getData()[1] # Channel 4 (V)
             qber = cts_h / (cts_h + cts_v)
-        optimizer.coordinate_descent_2nd_order(qber)
-        # optimizer.random_minimizer(qber)  # alternative
+            print("QBER: ", qber, "\n")
+        # optimizer.coordinate_descent_2nd_order(qber)
+        optimizer.random_minimizer(qber)  # alternative
         qbers[i] = qber
+
+    # Close COM port
+    wp_1.close()
+    wp_2.close()
 
     # Plot and save:
     np.savetxt("./QBERS.txt", qbers, delimiter="\n")
