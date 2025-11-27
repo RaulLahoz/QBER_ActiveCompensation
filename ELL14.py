@@ -162,7 +162,7 @@ if __name__ == "__main__":
     time.sleep(5)
 
     # ===== Move Absolute (degrees) =====
-    ell_0.move_absolute_deg(359.99) # Rotate device 0 to an absolute position
+    ell_0.move_absolute_deg(-9.99) # Rotate device 0 to an absolute position
     ell_2.move_absolute_deg(359.99) # Rotate device 2 to an absolute position
     time.sleep(3)
 

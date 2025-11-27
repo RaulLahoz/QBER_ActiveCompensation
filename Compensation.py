@@ -16,7 +16,7 @@ class ContinuousPolarizationOptimizer:
     """
     def __init__(self,
                  waveplates: tuple[ElliptecController, ...],
-                 max_stepsize_deg: float = 2.0,
+                 max_stepsize_deg: float = 15.0,
                  threshold: float = 0.01,
                  n_stored: int = 1):
         """
@@ -96,6 +96,8 @@ class ContinuousPolarizationOptimizer:
                 self._positions = positions
             else:
                 self._positions = self._previous_positions[np.argmin(self._previous_qbers)]
+                for i in (0, 1):
+                    self._waveplates[i].move_absolute_deg(self._positions[i])
             # Append new QBER and setting to lists:
             if len(self._previous_qbers) < self._n_stored:
                 self._previous_qbers = np.append(self._previous_qbers, qber)
@@ -135,6 +137,8 @@ class ContinuousPolarizationOptimizer:
                 self._origin_position = position
             else:
                 position = self._origin_position
+            # print("POS: ",position)
+            # print("Current pos: ", self._current_pos)
             self._qbers[self._current_pos] = qber
             if self._current_pos == 1:
                 self._waveplates[self._current_wp].move_absolute_deg(position + self._max_stepsize_deg)
@@ -147,10 +151,12 @@ class ContinuousPolarizationOptimizer:
                 dQ2_dV2 = (q_r - 2 * q + q_l)
                 dQ2_dV2 /= (self._max_stepsize_deg ** 2)
                 step = dQ_dV / dQ2_dV2
+                # print(f"Step: {step} dqdv: {dQ_dV}, dqdv2: {dQ2_dV2}")
                 # Make sure to never change by more than 5V:
                 sign = -1 if step < 0 else +1
-                if np.abs(step) > 5:
+                if np.abs(step) > 60:
                     step = sign * 5
+                
                 # Move the correct way depending on sign of second derivative:
                 if dQ2_dV2 > 0:
                     self._waveplates[self._current_wp].move_absolute_deg(position - step)
@@ -158,7 +164,7 @@ class ContinuousPolarizationOptimizer:
                     self._waveplates[self._current_wp].move_absolute_deg(position + step)
             # Update position and channel:
             self._positions = self.get_positions()
-            print(f"Position, Channel, Orientations: {self._current_pos}, {self._current_wp}, {self._positions}")
+            # print(f"Position, Channel, Orientations: {self._current_pos}, {self._current_wp}, {self._positions}")
             self._current_pos += 1
             self._current_pos %= 3
             if self._current_pos == 1:
@@ -168,8 +174,9 @@ class ContinuousPolarizationOptimizer:
 if __name__ == "__main__":
     # Test run setup
     TESTING = False
-    meas_duration = 10  # seconds
-    n_iterations = 100
+    total_meas_duration = 10  # seconds
+    indiv_meas_duration = 1
+    n_iterations = 50
     tt_channels = [3, 4] # Channel 3 (H), Channel 4 (V)
     qbers = np.zeros(n_iterations)
 
@@ -177,7 +184,8 @@ if __name__ == "__main__":
     wp_1 = ElliptecController(address="0", verbose=True)
     wp_2 = ElliptecController(address="2", verbose=True)
     waveplates = (wp_1, wp_2)
-    optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, max_stepsize_deg=1)
+    optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, )
+    # optimizer = ContinuousPolarizationOptimizer(waveplates, max_stepsize_deg=3, threshold=0.02)
 
     # ===== Homing =====
     wp_1.home(direction=0) # Homing device 0
@@ -192,6 +200,7 @@ if __name__ == "__main__":
     if not TESTING:
         tagger = TimeTagger.createTimeTagger()
         ctr = TimeTagger.Countrate(tagger, tt_channels)
+        time.sleep(indiv_meas_duration)
 
     # MEASUREMENT LOOP
     for i in range(n_iterations):
@@ -202,9 +211,10 @@ if __name__ == "__main__":
             cts_v = ctr.getData()[1] # Channel 4 (V)
             qber = cts_h / (cts_h + cts_v)
             print("QBER: ", qber, "\n")
-        # optimizer.coordinate_descent_2nd_order(qber)
-        optimizer.random_minimizer(qber)  # alternative
+        optimizer.coordinate_descent_2nd_order(qber)
+        # optimizer.random_minimizer(qber)  # alternative
         qbers[i] = qber
+        time.sleep(indiv_meas_duration)
 
     # Close COM port
     wp_1.close()
