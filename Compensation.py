@@ -108,9 +108,11 @@ class ContinuousPolarizationOptimizer:
         except Exception as e:
             print(e)
             print("Error during Polarization Optimization")
+
         # Apply voltage change with random sign and amplitude to a random channel:
         delta_phi = np.random.uniform(-self._max_stepsize_deg, self._max_stepsize_deg)
         wp = np.random.randint(0, 2)
+
         self._waveplates[wp].move_relative_deg(delta_phi)
         self._positions = self.get_positions()
 
@@ -175,22 +177,25 @@ if __name__ == "__main__":
     # Test run setup
     TESTING = False
     total_meas_duration = 10  # seconds
-    indiv_meas_duration = 1
-    n_iterations = 50
+    indiv_meas_duration = 0.1
+    n_iterations = 300
+    stepsize_deg = 2 
+
     tt_channels = [3, 4] # Channel 3 (H), Channel 4 (V)
     qbers = np.zeros(n_iterations)
+    pos_wp1 = np.zeros(n_iterations)
+    pos_wp2 = np.zeros(n_iterations)
 
     # Initialize waveplates:
     wp_1 = ElliptecController(address="0", verbose=True)
     wp_2 = ElliptecController(address="2", verbose=True)
     waveplates = (wp_1, wp_2)
-    optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, )
-    # optimizer = ContinuousPolarizationOptimizer(waveplates, max_stepsize_deg=3, threshold=0.02)
+    # optimizer = ContinuousPolarizationOptimizer(waveplates=waveplates, )
+    optimizer = ContinuousPolarizationOptimizer(waveplates, max_stepsize_deg=stepsize_deg, threshold=0.001)
 
     # ===== Homing =====
     wp_1.home(direction=0) # Homing device 0
     wp_2.home(direction=0) # Homing device 2
-    time.sleep(2)
 
     # Open GUI to make initial tuning:
     optimizer.tune_voltages_manually()  # Close the GUI window to move on, but CLOSE THE TIMETAGGER GUI before
@@ -200,27 +205,37 @@ if __name__ == "__main__":
     if not TESTING:
         tagger = TimeTagger.createTimeTagger()
         ctr = TimeTagger.Countrate(tagger, tt_channels)
-        time.sleep(indiv_meas_duration)
+        time.sleep(1)
 
     # MEASUREMENT LOOP
     for i in range(n_iterations):
+        print(f"Iteration {i}")
         if TESTING:
             qber = np.random.uniform(0, 0.2)
         else:
+            ctr = TimeTagger.Countrate(tagger, tt_channels) # CRITICAL
+            time.sleep(indiv_meas_duration)
             cts_h = ctr.getData()[0] # Channel 3 (H)
             cts_v = ctr.getData()[1] # Channel 4 (V)
             qber = cts_h / (cts_h + cts_v)
-            print("QBER: ", qber, "\n")
+            # print(f"Pos. Device 0: {wp_1.get_position_deg()}° \t Pos. Dev. 2: {wp_2.get_position_deg()}°")
+            print("QBER: ", qber)
+
+        # === update the max_stepsize_deg according to the qber ===
+        optimizer._max_stepsize_deg = stepsize_deg * qber
+
         optimizer.coordinate_descent_2nd_order(qber)
         # optimizer.random_minimizer(qber)  # alternative
+
         qbers[i] = qber
-        time.sleep(indiv_meas_duration)
+        pos_wp1[i] = wp_1.get_position_deg()
+        pos_wp2[i] = wp_2.get_position_deg()
 
     # Close COM port
     wp_1.close()
     wp_2.close()
 
-    # Plot and save:
+    # Plot and save QBERs:
     np.savetxt("./QBERS.txt", qbers, delimiter="\n")
     plt.plot(range(n_iterations), qbers)
     plt.grid()
@@ -228,4 +243,18 @@ if __name__ == "__main__":
     plt.ylabel("QBER")
     plt.tight_layout(pad=0.1)
     plt.savefig("./PolarizationStabilizationTest.jpg", dpi=600)
+    plt.show()
+
+    # Plot and save positions:
+    data_to_save = np.column_stack((pos_wp1, pos_wp2))
+    np.savetxt("./Positions_WPs.txt", data_to_save, delimiter="\t", header="pos_wp1\tpos_wp2", comments="")
+
+    plt.plot(range(n_iterations), pos_wp1, label="WP1 (QWP)")
+    plt.plot(range(n_iterations), pos_wp2, label="WP2 (HWP)")
+    plt.title("Positions waveplates")
+    plt.grid()
+    plt.xlabel("Iteration")
+    plt.ylabel("Pos. (deg.)")
+    plt.tight_layout(pad=0.1)
+    plt.savefig("./PosWaveplatesTest.jpg", dpi=600)
     plt.show()

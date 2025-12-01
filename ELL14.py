@@ -91,8 +91,8 @@ class ElliptecController:
         cmd = f"ma{hexval}"
         resp = self._send_cmd(cmd)
         self._update_position(resp)
-        if self.verbose:
-            print(f"Moved device {self.address} to position {self.position:.2f}°")
+        # if self.verbose:
+            # print(f"Moved device {self.address} to position {self.position:.2f}°")
         return resp
 
     def move_relative(self, pulses: int):
@@ -101,8 +101,8 @@ class ElliptecController:
         cmd = f"mr{hexval}"
         resp = self._send_cmd(cmd)
         self._update_position(resp)
-        if self.verbose:
-            print(f"Moved device {self.address} to position {self.position:.2f}°")
+        # if self.verbose:
+            # print(f"Moved device {self.address} to position {self.position:.2f}°")
         return resp
     
     def move_absolute_deg(self, degrees: float):
@@ -113,8 +113,8 @@ class ElliptecController:
         cmd = f"ma{hexval}"
         resp = self._send_cmd(cmd)
         self._update_position(resp)
-        if self.verbose:
-            print(f"Moved device {self.address} to position {self.position:.2f}°")
+        # if self.verbose:
+            # print(f"Moved device {self.address} to position {self.position:.2f}°")
         return resp
 
     def move_relative_deg(self, degrees: float):
@@ -124,16 +124,16 @@ class ElliptecController:
         cmd = f"mr{hexval}"
         resp = self._send_cmd(cmd)
         self._update_position(resp)
-        if self.verbose:
-            print(f"Moved device {self.address} to position {self.position:.2f}°")
+        # if self.verbose:
+            # print(f"Moved device {self.address} to position {self.position:.2f}°")
         return resp
 
     def stop(self):
         """Command ST: stop motion"""
         resp = self._send_cmd("st")
         self._update_position(resp)
-        if self.verbose:
-            print(f"Stopped device {self.address} at position {self.position:.2f}°")
+        # if self.verbose:
+            # print(f"Stopped device {self.address} at position {self.position:.2f}°")
         return resp
 
     def close(self):
