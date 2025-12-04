@@ -59,7 +59,13 @@ class ElliptecController:
     def _update_position(self, resp: str):
         """Update position whenever response is received from device. The class automatically calls
         this function after every move, so there is usually no need to update the position manually."""
-        self.position = round(self._pulses_to_deg(int(resp[-8:], 16)), 2)
+        try:
+            pos_hex = resp[-8:]
+            self.position = round(self._pulses_to_deg(int(pos_hex, 16)), 2)
+        except ValueError:
+            print(f"⚠ Respuesta inválida del actuador: '{resp}' (pos_hex='{pos_hex}')")
+            # No actualizamos la posición
+        return
 
     def get_info(self):
         """Command IN: get module information"""

@@ -55,18 +55,13 @@ class QBERWaveplateMapper:
         plt.tight_layout()
         plt.show()
 
-import time
-import numpy as np
-import matplotlib.pyplot as plt
-
-
 if __name__ == "__main__":
 
     # Parameters
-    indiv_meas_duration = 0.2
+    indiv_meas_duration = 0.1
     tt_channels = [3, 4]
-    step_wp1 = 10
-    step_wp2 = 10
+    step_wp1 = 1
+    step_wp2 = 1
 
     # Angles from -180° to +180°
     angles_wp1 = np.arange(-180, 180 + step_wp1, step_wp1)
@@ -97,9 +92,12 @@ if __name__ == "__main__":
         for i, angle_wp1 in enumerate(angles_wp1):
             for j, angle_wp2 in enumerate(angles_wp2):
 
-                # Move waveplates
-                wp_1.move_absolute_deg(angle_wp1)
-                wp_2.move_absolute_deg(angle_wp2)
+                wp_1.move_absolute_deg(angle_wp1) # Move waveplate 1
+                if j==0:
+                    wp_2.move_absolute_deg(angle_wp2) # Move waveplate 2 
+                    time.sleep(1) # Wait for completion (waveplate 2 goes from 180 to -180)
+                else:
+                    wp_2.move_absolute_deg(angle_wp2) # Move waveplate 2
 
                 # Wait for measurement
                 ctr = TimeTagger.Countrate(tagger, tt_channels) # CRITICAL

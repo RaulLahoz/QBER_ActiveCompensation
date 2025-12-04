@@ -1,0 +1,190 @@
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+import TimeTagger as TimeTagger
+from ELL14 import ElliptecController
+
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+
+class QBERWaveplateMapper:
+    """
+    Simple container class that stores settings
+    and provides angle ranges and output matrix.
+    """
+
+    def __init__(self,
+                 waveplates: tuple,
+                 counter,
+                 step_wp1: float = 10.0,
+                 step_wp2: float = 10.0,
+                 indiv_meas_duration: float = 0.2,
+                 filename: str = "map_qber.txt"):
+
+        self.wp_1 = waveplates[0]
+        self.wp_2 = waveplates[1]
+        self.ctr = counter
+
+        self.step_wp1 = step_wp1
+        self.step_wp2 = step_wp2
+        self.indiv_meas_duration = indiv_meas_duration
+        self.filename = filename
+
+        # Angle range from -180 to +180
+        self.angles_wp1 = np.arange(-180, 180 + step_wp1, step_wp1)
+        self.angles_wp2 = np.arange(-180, 180 + step_wp2, step_wp2)
+
+        # Storage matrix
+        self.qber_map = np.zeros((len(self.angles_wp2), len(self.angles_wp1)))
+
+    def plot_heatmap(self):
+        plt.figure(figsize=(8, 6))
+        plt.imshow(
+            self.qber_map,
+            extent=[-180, 180, -180, 180],
+            origin='lower',
+            aspect='auto',
+            cmap='viridis'
+        )
+        plt.colorbar(label="QBER")
+        plt.xlabel("QWP angle (°)")
+        plt.ylabel("HWP angle (°)")
+        plt.title("QBER Map: QWP vs HWP")
+        plt.tight_layout()
+        plt.show()
+
+
+if __name__ == "__main__":
+
+    # -----------------------------
+    # Parameters
+    # -----------------------------
+    indiv_meas_duration = 0.2
+    tt_channels = [3, 4]
+    step_wp1 = 1
+    step_wp2 = 1
+
+    # Angles from -180° to +180°
+    angles_wp1 = np.arange(-180, 180 + step_wp1, step_wp1)
+    angles_wp2 = np.arange(-180, 180 + step_wp2, step_wp2)
+
+    # Initialize QBER storage
+    qber_map = np.zeros((len(angles_wp2), len(angles_wp1)))
+
+    # -----------------------------
+    # Initialize waveplates
+    # -----------------------------
+    wp_1 = ElliptecController(address="0", verbose=True)
+    wp_2 = ElliptecController(address="2", verbose=True)
+
+    # Homing
+    wp_1.home(direction=0)
+    wp_2.home(direction=0)
+
+    # -----------------------------
+    # Initialize Time Tagger counter
+    # -----------------------------
+    tagger = TimeTagger.createTimeTagger()
+    ctr = TimeTagger.Countrate(tagger, tt_channels)
+    time.sleep(1)
+
+    # -----------------------------
+    # Check for previous RMA file
+    # -----------------------------
+    file_name = r"C:\Users\OpticalLab1\Desktop\QBER.Compensation\QBER_ActiveCompensation\map_qber.txt"
+    start_i = 0
+    start_j = 0
+
+    if os.path.exists(file_name):
+        with open(file_name, "r") as f:
+            lines = f.readlines()
+            if len(lines) > 1:  # There is existing data
+                last_line = lines[-1].strip().split("\t")
+                last_wp1 = float(last_line[0])
+                last_wp2 = float(last_line[1])
+                last_qber = float(last_line[4])
+                
+                # Load all previous values into qber_map
+                for line in lines[1:]:
+                    l = line.strip().split("\t")
+                    i_idx = np.where(np.isclose(angles_wp1, float(l[0]), atol=1e-4))[0][0]
+                    j_idx = np.where(np.isclose(angles_wp2, float(l[1]), atol=1e-4))[0][0]
+                    qber_map[j_idx, i_idx] = float(l[4])
+                
+                # If the previous sweep finished
+                if last_wp1 >= 180 and last_wp2 >= 180:
+                    print("Previous run finished. Starting from the beginning.")
+                else:
+                    # Continue from the last position
+                    start_i = np.where(np.isclose(angles_wp1, last_wp1, atol=1e-4))[0][0]
+                    start_j = np.where(np.isclose(angles_wp2, last_wp2, atol=1e-4))[0][0]
+                    # Continue with the next position
+                    start_j += 1
+                    if start_j >= len(angles_wp2):
+                        start_j = 0
+                        start_i += 1
+                    print(f"Resuming from QWP={angles_wp1[start_i]}°, HWP={angles_wp2[start_j]}°")
+    else:
+        # Create file and write header if it does not exist
+        with open(file_name, "w") as f:
+            f.write("angle_wp1\tangle_wp2\tcts_h\tcts_v\tqber\n")
+
+    # -----------------------------
+    # CORE DOUBLE LOOP
+    # -----------------------------
+    with open(file_name, "a") as f:
+        for i in range(start_i, len(angles_wp1)):
+            j_start = start_j if i == start_i else 0
+            for j in range(j_start, len(angles_wp2)):
+                try:
+                    angle_wp1 = angles_wp1[i]
+                    angle_wp2 = angles_wp2[j]
+
+                    # Move waveplates
+                    wp_1.move_absolute_deg(angle_wp1)
+                    wp_2.move_absolute_deg(angle_wp2)
+
+                    # Wait for measurement
+                    ctr = TimeTagger.Countrate(tagger, tt_channels)  # CRITICAL
+                    time.sleep(indiv_meas_duration)
+
+                    # Read counts
+                    cts_h = ctr.getData()[0]  # Channel 3 (H)
+                    cts_v = ctr.getData()[1]  # Channel 4 (V)
+
+                    # Compute QBER safely
+                    qber = cts_h / (cts_h + cts_v) if (cts_h + cts_v) > 0 else 0
+
+                    # Store QBER in matrix
+                    qber_map[j, i] = qber
+
+                    # Save to file
+                    f.write(f"{angle_wp1}\t{angle_wp2}\t{cts_h}\t{cts_v}\t{qber}\n")
+                    f.flush()
+                    print(f"QBER={qber:.4f} at (QWP={angle_wp1}°, HWP={angle_wp2}°)")
+
+                except Exception as e:
+                    print(f"Error at QWP={angle_wp1}°, HWP={angle_wp2}°: {e}")
+                    time.sleep(1)
+                    raise
+
+    # -----------------------------
+    # HEATMAP
+    # -----------------------------
+    plt.figure(figsize=(8, 6))
+    plt.imshow(
+        qber_map,
+        extent=[-180, 180, -180, 180],
+        origin='lower',
+        aspect='auto',
+        cmap='viridis'
+    )
+    plt.colorbar(label="QBER")
+    plt.xlabel("QWP angle (°)")
+    plt.ylabel("HWP angle (°)")
+    plt.title("QBER Map: QWP vs HWP")
+    plt.tight_layout()
+    plt.show()
